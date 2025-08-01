@@ -7,6 +7,7 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
+# HTML FORMS FOR MANUAL BROWSER TESTING
 register_form_html = """
 <!doctype html>
 <title>Register</title>
@@ -48,9 +49,7 @@ login_form_html = """
 
       fetch('/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
       })
       .then(response => response.json())
@@ -58,6 +57,9 @@ login_form_html = """
         if (data.token) {
           result.style.color = 'green';
           result.textContent = 'Login successful! Token: ' + data.token;
+          localStorage.setItem('token', data.token);
+          localStorage.setItem('role', data.role);
+          // Redirect or inform frontend here
         } else {
           result.style.color = 'red';
           result.textContent = 'Login failed: ' + (data.message || 'Unknown error');
@@ -73,11 +75,15 @@ login_form_html = """
 </html>
 """
 
+
+# REGISTER ROUTE
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'GET':
         return render_template_string(register_form_html)
 
+    # Accept both JSON and form data
     if request.is_json:
         data = request.get_json()
         username = data.get('username')
@@ -91,18 +97,25 @@ def register():
     if not all([username, password, role]):
         return jsonify({"error": "Missing username, password or role"}), 400
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)", (
-        username,
-        generate_password_hash(password),
-        role
-    ))
-    conn.commit()
-    cursor.close()
-    conn.close()
-    
-    return jsonify({"message": "User registered successfully"})
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)", (
+            username,
+            generate_password_hash(password),
+            role
+        ))
+        conn.commit()
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+    return jsonify({"message": "User registered successfully"}), 201
+
+
+# LOGIN ROUTE
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -124,15 +137,19 @@ def login():
     try:
         cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
         user = cursor.fetchone()
-        cursor.nextset()  # clear unread results
+        cursor.nextset()  # Prevent unread result error
 
         if user and check_password_hash(user['password'], password):
             token = generate_token(user['id'], user['role'])
             return jsonify({"token": token, "role": user['role']})
-        return jsonify({"message": "Invalid credentials"}), 401
+        else:
+            return jsonify({"message": "Invalid credentials"}), 401
     finally:
         cursor.close()
         conn.close()
+
+
+# RUN APP
 
 if __name__ == '__main__':
     import os
