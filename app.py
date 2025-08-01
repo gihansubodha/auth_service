@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from db_config import get_db_connection
-from utils.auth_utils import generate_token
+from auth_utils import generate_token
 
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_cors import CORS
