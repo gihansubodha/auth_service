@@ -62,28 +62,32 @@ def register():
     
     return jsonify({"message": "User registered successfully"})
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login', methods=['POST'])
 def login():
-    if request.method == 'GET':
-        return render_template_string(login_form_html)
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Request must be JSON"}), 400
 
-    if request.is_json:
-        data = request.get_json()
-        username = data.get('username')
-        password = data.get('password')
-    else:
-        username = request.form.get('username')
-        password = request.form.get('password')
-
+    username = data.get('username')
+    password = data.get('password')
     if not username or not password:
         return jsonify({"error": "Missing username or password"}), 400
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
-    user = cursor.fetchone()
-    cursor.close()
-    conn.close()
+
+    try:
+        cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
+        user = cursor.fetchone()
+        cursor.nextset()  # Clear any remaining unread results
+
+        if user and check_password_hash(user['password'], password):
+            token = generate_token(user['id'], user['role'])
+            return jsonify({"token": token, "role": user['role']})
+        return jsonify({"message": "Invalid credentials"}), 401
+    finally:
+        cursor.close()
+        conn.close()
 
     if user and check_password_hash(user['password'], password):
         token = generate_token(user['id'], user['role'])
