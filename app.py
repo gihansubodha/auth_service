@@ -117,17 +117,16 @@ def register():
 
 # LOGIN ROUTE
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login', methods=['POST'])
 def login():
-    if request.method == 'GET':
-        return render_template_string(login_form_html)
-
+    # Only allow JSON payloads
     if not request.is_json:
-        return jsonify({"error": "Request must be JSON"}), 415
+        return jsonify({"error": "Request must be in JSON format"}), 400
 
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
+
     if not username or not password:
         return jsonify({"error": "Missing username or password"}), 400
 
@@ -135,15 +134,16 @@ def login():
     cursor = conn.cursor(dictionary=True)
 
     try:
-        cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
+        cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
         user = cursor.fetchone()
-        cursor.nextset()  # Prevent unread result error
 
         if user and check_password_hash(user['password'], password):
             token = generate_token(user['id'], user['role'])
-            return jsonify({"token": token, "role": user['role']})
+            return jsonify({"token": token, "role": user['role']}), 200
         else:
-            return jsonify({"message": "Invalid credentials"}), 401
+            return jsonify({"error": "Invalid credentials"}), 401
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
     finally:
         cursor.close()
         conn.close()
@@ -155,3 +155,4 @@ if __name__ == '__main__':
     import os
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
+
