@@ -8,7 +8,7 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
-@app.route('/register', methods=['POST'])
+@app.route('/register', methods=['GET','POST'])
 def register():
     data = request.json
     conn = get_db_connection()
@@ -23,7 +23,7 @@ def register():
     conn.close()
     return jsonify({"message": "User registered successfully"})
 
-@app.route('/login', methods=['POST'])
+@app.route('/login', methods=['GET','POST'])
 def login():
     data = request.json
     conn = get_db_connection()
