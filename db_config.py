@@ -1,10 +1,9 @@
 import mysql.connector
 
-def get_connection():
+def get_db_connection():
     return mysql.connector.connect(
-        host="cozycomfort-gihansubodha-soc.c.aivencloud.com",
-	port=26728,
-        user="avnadmin",
-        password="AVNS_i33CBpI3jeyig2mnoMR",
-        database="defaultdb"
+        host='YOUR_AIVEN_HOST',
+        user='YOUR_AIVEN_USER',
+        password='YOUR_AIVEN_PASSWORD',
+        database='cozy_comfort'
     )
