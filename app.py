@@ -62,7 +62,7 @@ def register():
     
     return jsonify({"message": "User registered successfully"})
 
-@app.route('/login', methods=['POST'])
+@app.route('/login', methods=['GET','POST'])
 def login():
     data = request.get_json()
     if not data:
