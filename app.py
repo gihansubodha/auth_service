@@ -21,13 +21,56 @@ register_form_html = """
 
 login_form_html = """
 <!doctype html>
-<title>Login</title>
-<h2>Login</h2>
-<form method="post" action="/login">
-  Username: <input type="text" name="username" /><br/>
-  Password: <input type="password" name="password" /><br/>
-  <input type="submit" value="Login" />
-</form>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Login</title>
+</head>
+<body>
+  <h2>Login</h2>
+  <form id="loginForm">
+    <label>Username: <input type="text" id="username" required></label><br><br>
+    <label>Password: <input type="password" id="password" required></label><br><br>
+    <button type="submit">Login</button>
+  </form>
+
+  <div id="result" style="margin-top: 20px; color: green;"></div>
+
+  <script>
+    const form = document.getElementById('loginForm');
+    const result = document.getElementById('result');
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+
+      fetch('/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username, password })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.token) {
+          result.style.color = 'green';
+          result.textContent = 'Login successful! Token: ' + data.token;
+        } else {
+          result.style.color = 'red';
+          result.textContent = 'Login failed: ' + (data.message || 'Unknown error');
+        }
+      })
+      .catch(err => {
+        result.style.color = 'red';
+        result.textContent = 'Error: ' + err.message;
+      });
+    });
+  </script>
+</body>
+</html>
 """
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -35,7 +78,6 @@ def register():
     if request.method == 'GET':
         return render_template_string(register_form_html)
 
-    # POST: Support form data or JSON
     if request.is_json:
         data = request.get_json()
         username = data.get('username')
@@ -62,12 +104,15 @@ def register():
     
     return jsonify({"message": "User registered successfully"})
 
-@app.route('/login', methods=['GET','POST'])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
-    data = request.get_json()
-    if not data:
-        return jsonify({"error": "Request must be JSON"}), 400
+    if request.method == 'GET':
+        return render_template_string(login_form_html)
 
+    if not request.is_json:
+        return jsonify({"error": "Request must be JSON"}), 415
+
+    data = request.get_json()
     username = data.get('username')
     password = data.get('password')
     if not username or not password:
@@ -79,7 +124,7 @@ def login():
     try:
         cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
         user = cursor.fetchone()
-        cursor.nextset()  # Clear any remaining unread results
+        cursor.nextset()  # clear unread results
 
         if user and check_password_hash(user['password'], password):
             token = generate_token(user['id'], user['role'])
@@ -88,11 +133,6 @@ def login():
     finally:
         cursor.close()
         conn.close()
-
-    if user and check_password_hash(user['password'], password):
-        token = generate_token(user['id'], user['role'])
-        return jsonify({"token": token, "role": user['role']})
-    return jsonify({"message": "Invalid credentials"}), 401
 
 if __name__ == '__main__':
     import os
