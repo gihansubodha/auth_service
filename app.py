@@ -1,17 +1,19 @@
 from flask import Flask, request, jsonify
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from flask_cors import CORS
 import bcrypt
 import mysql.connector
 from db_config import get_db_connection
 import os
-from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
-app.config['JWT_SECRET_KEY'] = 'your-secret-key'  # change to env var in production
+
+# Change this to environment variable in production
+app.config['JWT_SECRET_KEY'] = 'your-secret-key'
 jwt = JWTManager(app)
 
-#  Helper function to check user role
+# ✅ Role-based access decorator
 def check_role(required_roles):
     def wrapper(fn):
         def decorator(*args, **kwargs):
@@ -28,7 +30,7 @@ def check_role(required_roles):
         return decorator
     return wrapper
 
-#  Register user (Admin only)
+# ✅ Register user (Admin only)
 @app.route('/register', methods=['POST'])
 @jwt_required()
 @check_role(['admin'])
@@ -43,12 +45,12 @@ def register():
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)",
-                   (username, hashed_pw, role))
+                   (username, hashed_pw.decode('utf-8'), role))
     conn.commit()
     conn.close()
     return jsonify({"msg": "User registered successfully"})
 
-# Login user
+# ✅ Login user
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
@@ -66,7 +68,7 @@ def login():
         return jsonify({"token": token, "role": user['role']})
     return jsonify({"msg": "Invalid credentials"}), 401
 
-# Delete user (Admin only)
+# ✅ Delete user (Admin only)
 @app.route('/delete_user', methods=['DELETE'])
 @jwt_required()
 @check_role(['admin'])
@@ -81,15 +83,13 @@ def delete_user():
     conn.close()
     return jsonify({"msg": "User deleted"})
 
-# Protected route example (Seller only)
+# ✅ Protected route (Seller example)
 @app.route('/protected_seller', methods=['GET'])
 @jwt_required()
 @check_role(['seller'])
 def seller_only():
-    return jsonify({"msg": "Hello Seller, this route is protected!"})
+    return jsonify({"msg": "Hello Seller! Protected route works."})
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
-
-
