@@ -1,5 +1,4 @@
 import mysql.connector
-import os
 
 db_config = {
     'host': 'cozycomfort-gihansubodha-soc.c.aivencloud.com',
