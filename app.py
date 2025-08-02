@@ -3,6 +3,7 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 import bcrypt
 import mysql.connector
 from db_config import get_db_connection
+import os
 
 app = Flask(__name__)
 app.config['JWT_SECRET_KEY'] = 'your-secret-key'  # change to env var in production
@@ -86,4 +87,6 @@ def seller_only():
     return jsonify({"msg": "Hello Seller, this route is protected!"})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
+
