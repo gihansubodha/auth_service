@@ -83,6 +83,14 @@ def delete_user():
 def health():
     return jsonify({"status": "Auth Service Running"})
 
+#  Protected route test (Seller)
+@app.route('/protected_seller', methods=['GET'])
+@jwt_required()
+@check_role(['seller'])
+def seller_only():
+    return jsonify({"msg": "Hello Seller! Protected route works."}) 
+    
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
