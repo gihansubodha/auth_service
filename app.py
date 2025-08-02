@@ -49,14 +49,31 @@ def register():
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
-    username = data['username']
-    password = data['password']
+    username = data.get('username')
+    password = data.get('password')
+
+    if not username or not password:
+        return jsonify({"msg": "Username and password are required"}), 400
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM users WHERE username=%s AND password=%s", (username, password))
+    cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
     user = cursor.fetchone()
     conn.close()
+
+    if user:
+        stored_pw = user['password']
+        # Ensure stored password is a string
+        if isinstance(stored_pw, bytes):
+            stored_pw = stored_pw.decode('utf-8')
+
+        if bcrypt.checkpw(password.encode('utf-8'), stored_pw.encode('utf-8')):
+            token = create_access_token(identity=username)
+            return jsonify({"token": token, "role": user['role']})
+
+    # return a response even if login fails
+    return jsonify({"msg": "Invalid credentials"}), 401
+
 
 #  Get user info by username
 @app.route('/get_user/<username>', methods=['GET'])
@@ -104,6 +121,7 @@ def seller_only():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
