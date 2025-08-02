@@ -1,19 +1,16 @@
 from flask import Flask, request, jsonify
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_cors import CORS
-import bcrypt
-import mysql.connector
-from db_config import get_db_connection
 import os
+from db_config import get_db_connection
 
 app = Flask(__name__)
 CORS(app)
 
-# Change this to environment variable in production
 app.config['JWT_SECRET_KEY'] = 'your-secret-key'
 jwt = JWTManager(app)
 
-# ✅ Role-based access decorator
+#  Role checker
 def check_role(required_roles):
     def wrapper(fn):
         def decorator(*args, **kwargs):
@@ -30,27 +27,25 @@ def check_role(required_roles):
         return decorator
     return wrapper
 
-# ✅ Register user (Admin only)
+#  Register user (Admin only)
 @app.route('/register', methods=['POST'])
 @jwt_required()
 @check_role(['admin'])
 def register():
     data = request.json
     username = data['username']
-    password = data['password']
+    password = data['password']  
     role = data['role']
-
-    hashed_pw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
 
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)",
-                   (username, hashed_pw.decode('utf-8'), role))
+                   (username, password, role))
     conn.commit()
     conn.close()
     return jsonify({"msg": "User registered successfully"})
 
-# ✅ Login user
+# Login user (Plain text)
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
@@ -59,16 +54,16 @@ def login():
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
+    cursor.execute("SELECT * FROM users WHERE username=%s AND password=%s", (username, password))
     user = cursor.fetchone()
     conn.close()
 
-    if user and bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
+    if user:
         token = create_access_token(identity=username)
         return jsonify({"token": token, "role": user['role']})
     return jsonify({"msg": "Invalid credentials"}), 401
 
-# ✅ Delete user (Admin only)
+#  Delete user (Admin only)
 @app.route('/delete_user', methods=['DELETE'])
 @jwt_required()
 @check_role(['admin'])
@@ -83,12 +78,10 @@ def delete_user():
     conn.close()
     return jsonify({"msg": "User deleted"})
 
-# ✅ Protected route (Seller example)
-@app.route('/protected_seller', methods=['GET'])
-@jwt_required()
-@check_role(['seller'])
-def seller_only():
-    return jsonify({"msg": "Hello Seller! Protected route works."})
+#  Health check
+@app.route('/', methods=['GET'])
+def health():
+    return jsonify({"status": "Auth Service Running"})
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
