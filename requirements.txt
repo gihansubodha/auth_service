@@ -1,5 +1,6 @@
-flask
+Flask
+Flask-MySQLdb
 mysql-connector-python
-flask-cors
-werkzeug
-pyjwt
+Flask-JWT-Extended
+bcrypt
+python-dotenv
