@@ -63,16 +63,13 @@ def login():
 
     if user:
         stored_pw = user['password']
-        # Ensure stored password is a string
-        if isinstance(stored_pw, bytes):
-            stored_pw = stored_pw.decode('utf-8')
-
-        if bcrypt.checkpw(password.encode('utf-8'), stored_pw.encode('utf-8')):
+        
+        if password == stored_pw:
             token = create_access_token(identity=username)
             return jsonify({"token": token, "role": user['role']})
 
-    # return a response even if login fails
     return jsonify({"msg": "Invalid credentials"}), 401
+
 
 
 #  Get user info by username
@@ -121,6 +118,7 @@ def seller_only():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
