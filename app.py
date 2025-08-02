@@ -45,7 +45,7 @@ def register():
     conn.close()
     return jsonify({"msg": "User registered successfully"})
 
-# Login user (Plain text)
+# Login user
 @app.route('/login', methods=['POST'])
 def login():
     data = request.json
@@ -58,6 +58,17 @@ def login():
     user = cursor.fetchone()
     conn.close()
 
+#  Get user info by username
+@app.route('/get_user/<username>', methods=['GET'])
+def get_user(username):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT id, username, role FROM users WHERE username=%s", (username,))
+    user = cursor.fetchone()
+    conn.close()
+    if user:
+        return jsonify(user)
+    return jsonify({"msg": "User not found"}), 404
     if user:
         token = create_access_token(identity=username)
         return jsonify({"token": token, "role": user['role']})
@@ -93,4 +104,5 @@ def seller_only():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
