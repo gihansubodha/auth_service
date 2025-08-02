@@ -5,7 +5,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=["https://gihansubodha.github.io"])
 
 # HTML FORMS FOR MANUAL BROWSER TESTING
 register_form_html = """
@@ -155,4 +155,5 @@ if __name__ == '__main__':
     import os
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
+
 
