@@ -1,159 +1,89 @@
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+import bcrypt
+import mysql.connector
 from db_config import get_db_connection
-from auth_utils import generate_token
-from werkzeug.security import generate_password_hash, check_password_hash
-from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app, origins=["https://gihansubodha.github.io"])
+app.config['JWT_SECRET_KEY'] = 'your-secret-key'  # change to env var in production
+jwt = JWTManager(app)
 
-# HTML FORMS FOR MANUAL BROWSER TESTING
-register_form_html = """
-<!doctype html>
-<title>Register</title>
-<h2>Register User</h2>
-<form method="post" action="/register">
-  Username: <input type="text" name="username" /><br/>
-  Password: <input type="password" name="password" /><br/>
-  Role: <input type="text" name="role" /><br/>
-  <input type="submit" value="Register" />
-</form>
-"""
+#  Helper function to check user role
+def check_role(required_roles):
+    def wrapper(fn):
+        def decorator(*args, **kwargs):
+            current_user = get_jwt_identity()
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT role FROM users WHERE username=%s", (current_user,))
+            user = cursor.fetchone()
+            conn.close()
+            if user and user['role'] in required_roles:
+                return fn(*args, **kwargs)
+            return jsonify({"msg": "Unauthorized"}), 403
+        decorator.__name__ = fn.__name__
+        return decorator
+    return wrapper
 
-login_form_html = """
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Login</title>
-</head>
-<body>
-  <h2>Login</h2>
-  <form id="loginForm">
-    <label>Username: <input type="text" id="username" required></label><br><br>
-    <label>Password: <input type="password" id="password" required></label><br><br>
-    <button type="submit">Login</button>
-  </form>
-
-  <div id="result" style="margin-top: 20px; color: green;"></div>
-
-  <script>
-    const form = document.getElementById('loginForm');
-    const result = document.getElementById('result');
-
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
-
-      const username = document.getElementById('username').value;
-      const password = document.getElementById('password').value;
-
-      fetch('/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.token) {
-          result.style.color = 'green';
-          result.textContent = 'Login successful! Token: ' + data.token;
-          localStorage.setItem('token', data.token);
-          localStorage.setItem('role', data.role);
-          // Redirect or inform frontend here
-        } else {
-          result.style.color = 'red';
-          result.textContent = 'Login failed: ' + (data.message || 'Unknown error');
-        }
-      })
-      .catch(err => {
-        result.style.color = 'red';
-        result.textContent = 'Error: ' + err.message;
-      });
-    });
-  </script>
-</body>
-</html>
-"""
-
-
-# REGISTER ROUTE
-
-@app.route('/register', methods=['GET', 'POST'])
+#  Register user (Admin only)
+@app.route('/register', methods=['POST'])
+@jwt_required()
+@check_role(['admin'])
 def register():
-    if request.method == 'GET':
-        return render_template_string(register_form_html)
+    data = request.json
+    username = data['username']
+    password = data['password']
+    role = data['role']
 
-    # Accept both JSON and form data
-    if request.is_json:
-        data = request.get_json()
-        username = data.get('username')
-        password = data.get('password')
-        role = data.get('role')
-    else:
-        username = request.form.get('username')
-        password = request.form.get('password')
-        role = request.form.get('role')
+    hashed_pw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
 
-    if not all([username, password, role]):
-        return jsonify({"error": "Missing username, password or role"}), 400
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)",
+                   (username, hashed_pw, role))
+    conn.commit()
+    conn.close()
+    return jsonify({"msg": "User registered successfully"})
 
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)", (
-            username,
-            generate_password_hash(password),
-            role
-        ))
-        conn.commit()
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    finally:
-        cursor.close()
-        conn.close()
-
-    return jsonify({"message": "User registered successfully"}), 201
-
-
-# LOGIN ROUTE
-
+# Login user
 @app.route('/login', methods=['POST'])
 def login():
-    # Only allow JSON payloads
-    if not request.is_json:
-        return jsonify({"error": "Request must be in JSON format"}), 400
-
-    data = request.get_json()
-    username = data.get('username')
-    password = data.get('password')
-
-    if not username or not password:
-        return jsonify({"error": "Missing username or password"}), 400
+    data = request.json
+    username = data['username']
+    password = data['password']
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
+    user = cursor.fetchone()
+    conn.close()
 
-    try:
-        cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
-        user = cursor.fetchone()
+    if user and bcrypt.checkpw(password.encode('utf-8'), user['password'].encode('utf-8')):
+        token = create_access_token(identity=username)
+        return jsonify({"token": token, "role": user['role']})
+    return jsonify({"msg": "Invalid credentials"}), 401
 
-        if user and check_password_hash(user['password'], password):
-            token = generate_token(user['id'], user['role'])
-            return jsonify({"token": token, "role": user['role']}), 200
-        else:
-            return jsonify({"error": "Invalid credentials"}), 401
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    finally:
-        cursor.close()
-        conn.close()
+# Delete user (Admin only)
+@app.route('/delete_user', methods=['DELETE'])
+@jwt_required()
+@check_role(['admin'])
+def delete_user():
+    data = request.json
+    username = data['username']
 
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM users WHERE username=%s", (username,))
+    conn.commit()
+    conn.close()
+    return jsonify({"msg": "User deleted"})
 
-# RUN APP
+# Protected route example (Seller only)
+@app.route('/protected_seller', methods=['GET'])
+@jwt_required()
+@check_role(['seller'])
+def seller_only():
+    return jsonify({"msg": "Hello Seller, this route is protected!"})
 
 if __name__ == '__main__':
-    import os
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
-
-
+    app.run(debug=True)
