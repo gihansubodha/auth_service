@@ -103,7 +103,8 @@ def delete_user():
     conn.close()
     return jsonify({"msg": "User deleted"})
 
-@app.get("/all_users")
+@app.route("/all_users", methods=["GET"])
+@jwt_required()
 def get_all_users():
     try:
         conn = get_db_connection()
@@ -130,6 +131,7 @@ def seller_only():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
