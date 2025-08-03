@@ -105,8 +105,15 @@ def delete_user():
 
 @app.get("/all_users")
 def get_all_users():
-    users = db.fetch_all("SELECT username, role FROM users")
-    return users
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT username, role FROM users")
+        users = cursor.fetchall()
+        conn.close()
+        return jsonify({"users": users})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 #  Health check
 @app.route('/', methods=['GET'])
@@ -123,6 +130,7 @@ def seller_only():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
