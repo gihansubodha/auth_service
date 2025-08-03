@@ -103,6 +103,11 @@ def delete_user():
     conn.close()
     return jsonify({"msg": "User deleted"})
 
+@app.get("/all_users")
+def get_all_users():
+    users = db.fetch_all("SELECT username, role FROM users")
+    return users
+
 #  Health check
 @app.route('/', methods=['GET'])
 def health():
@@ -114,10 +119,11 @@ def health():
 @check_role(['seller'])
 def seller_only():
     return jsonify({"msg": "Hello Seller! Protected route works."}) 
-    
+        
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
