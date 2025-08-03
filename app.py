@@ -5,7 +5,7 @@ import os
 from db_config import get_db_connection
 
 app = Flask(__name__)
-CORS(app, supports_credentials=True, origins=["*"])
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 app.config['JWT_SECRET_KEY'] = 'your-secret-key'
 jwt = JWTManager(app)
@@ -130,6 +130,7 @@ def seller_only():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
 
